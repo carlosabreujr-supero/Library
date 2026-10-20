@@ -1,3 +1,4 @@
+using LibraryLoans.Api.Infrastructure;
 using LibraryLoans.Application;
 using LibraryLoans.Infrastructure;
 
@@ -7,7 +8,21 @@ builder.Services
     .AddApplication()
     .AddInfrastructure(builder.Configuration);
 
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails(options =>
+    options.CustomizeProblemDetails = ctx =>
+    {
+        ctx.ProblemDetails.Extensions["traceId"] = ctx.HttpContext.TraceIdentifier;
+        if (ctx.HttpContext.Items[CorrelationIdMiddleware.ItemKey] is string correlationId)
+            ctx.ProblemDetails.Extensions["correlationId"] = correlationId;
+    });
+
 var app = builder.Build();
+
+// Correlation id primeiro, para que o tratamento de exceções e os logs já o incluam.
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
