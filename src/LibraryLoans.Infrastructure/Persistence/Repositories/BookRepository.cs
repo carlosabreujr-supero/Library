@@ -12,6 +12,12 @@ internal sealed class BookRepository(LibraryDbContext db) : IBookRepository
 
     public void Add(Book book) => db.Books.Add(book);
 
+    public Task<Book?> GetAsNoTrackingAsync(Guid id, CancellationToken cancellationToken) =>
+        db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
+
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+        db.Books.AnyAsync(b => b.Id == id, cancellationToken);
+
     public async Task<PagedResult<Book>> ListAsync(
         int page, int pageSize, string? search, bool includeInactive, CancellationToken cancellationToken)
     {

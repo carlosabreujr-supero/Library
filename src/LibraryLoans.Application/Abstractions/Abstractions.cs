@@ -6,6 +6,8 @@ namespace LibraryLoans.Application.Abstractions;
 public interface IBookRepository
 {
     Task<Book?> FindAsync(Guid id, CancellationToken cancellationToken);
+    Task<Book?> GetAsNoTrackingAsync(Guid id, CancellationToken cancellationToken);
+    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
     void Add(Book book);
     Task<PagedResult<Book>> ListAsync(int page, int pageSize, string? search, bool includeInactive, CancellationToken cancellationToken);
 }
