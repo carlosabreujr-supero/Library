@@ -1,4 +1,6 @@
 ﻿using LibraryLoans.Application.Abstractions;
+using LibraryLoans.Application.Loans;
+using LibraryLoans.Infrastructure.Idempotency;
 using LibraryLoans.Infrastructure.Persistence;
 using LibraryLoans.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +21,13 @@ public static class DependencyInjection
         services.AddScoped<IBookRepository, BookRepository>();
         services.AddScoped<IReaderRepository, ReaderRepository>();
         services.AddScoped<ILoanRepository, LoanRepository>();
+        services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
+
+        var idempotency = configuration.GetSection("Idempotency").Get<IdempotencySettings>() ?? new();
+        idempotency.Validate();
+        services.AddSingleton(idempotency);
+        services.AddHostedService<IdempotencyPurgeService>();
+
         services.AddScoped<ILoanQueries, LoanQueries>();
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
