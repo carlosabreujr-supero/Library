@@ -1,5 +1,6 @@
 ﻿using LibraryLoans.Application.Abstractions;
 using LibraryLoans.Application.Loans;
+using LibraryLoans.Infrastructure.Caching;
 using LibraryLoans.Infrastructure.Idempotency;
 using LibraryLoans.Infrastructure.Persistence;
 using LibraryLoans.Infrastructure.Persistence.Repositories;
@@ -33,7 +34,28 @@ public static class DependencyInjection
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-        // Redis e repositórios serão registrados aqui.
+        var cacheSettings = configuration.GetSection("Cache").Get<CacheSettings>() ?? new();
+        cacheSettings.Validate();
+        services.AddSingleton(cacheSettings);
+        if (cacheSettings.Enabled)
+        {
+            var redisConnection = configuration.GetConnectionString("Redis")
+                ?? throw new InvalidOperationException("ConnectionStrings:Redis não configurada (ou defina Cache:Enabled=false).");
+
+            // O cache é opcional: a API deve subir e operar mesmo com o Redis fora do ar.
+            var redisOptions = StackExchange.Redis.ConfigurationOptions.Parse(redisConnection);
+            redisOptions.AbortOnConnectFail = false;
+            redisOptions.ConnectTimeout = cacheSettings.TimeoutMs;
+            redisOptions.SyncTimeout = cacheSettings.TimeoutMs;
+            redisOptions.AsyncTimeout = cacheSettings.TimeoutMs;
+            services.AddStackExchangeRedisCache(o => o.ConfigurationOptions = redisOptions);
+            services.AddSingleton<IReadCache, RedisReadCache>();
+        }
+        else
+        {
+            services.AddSingleton<IReadCache, NoReadCache>();
+        }
+
         return services;
     }
 }

@@ -11,6 +11,8 @@ services:
       ConnectionStrings__Redis: "redis:6379"
       Loans__DefaultLoanDays: ${LOAN_DEFAULT_DAYS:-14}
       Idempotency__RetentionHours: ${IDEMPOTENCY_RETENTION_HOURS:-24}
+      Cache__Enabled: ${CACHE_ENABLED:-true}
+      Cache__TtlSeconds: ${CACHE_TTL_SECONDS:-30}
     depends_on:
       postgres:
         condition: service_healthy

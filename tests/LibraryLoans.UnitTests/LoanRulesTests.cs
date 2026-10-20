@@ -1,3 +1,4 @@
+using LibraryLoans.Application.Abstractions;
 using LibraryLoans.Application.Books;
 using LibraryLoans.Application.Exceptions;
 using LibraryLoans.Application.Loans;
@@ -16,9 +17,9 @@ public class LoanRulesTests
     private readonly TimeProvider _clock = TimeProvider.System;
 
     private CreateLoanHandler Create() =>
-        new(_books, _readers, _loans, _idempotency, _audit, _uow, new LoanSettings { DefaultLoanDays = 14 }, _clock);
+        new(_books, _readers, _loans, _idempotency, _audit, _uow, new NoReadCache(), new LoanSettings { DefaultLoanDays = 14 }, _clock);
 
-    private CloseLoanService Close() => new(_books, _loans, _audit, _uow, _clock);
+    private CloseLoanService Close() => new(_books, _loans, _audit, _uow, new NoReadCache(), _clock);
 
     private Task<CreateLoanResult> Borrow(Book b, Reader r, string key = "k1") =>
         Create().HandleAsync(new CreateLoanCommand(b.Id, r.Id, key), CancellationToken.None);
@@ -156,7 +157,7 @@ public class LoanRulesTests
     public async Task Total_copies_cannot_drop_below_borrowed_quantity()
     {
         var book = _books.Seed(total: 5, available: 2); // 3 emprestados
-        var handler = new UpdateBookHandler(_books, _audit, _uow, _clock);
+        var handler = new UpdateBookHandler(_books, _audit, _uow, new NoReadCache(), _clock);
 
         await Assert.ThrowsAsync<ConflictException>(() =>
             handler.HandleAsync(new UpdateBookCommand(book.Id, null, null, null, 2), CancellationToken.None));
@@ -169,7 +170,7 @@ public class LoanRulesTests
     public async Task Total_copies_equal_to_borrowed_quantity_is_accepted()
     {
         var book = _books.Seed(total: 5, available: 2);
-        var handler = new UpdateBookHandler(_books, _audit, _uow, _clock);
+        var handler = new UpdateBookHandler(_books, _audit, _uow, new NoReadCache(), _clock);
 
         var dto = await handler.HandleAsync(new UpdateBookCommand(book.Id, null, null, null, 3), CancellationToken.None);
 

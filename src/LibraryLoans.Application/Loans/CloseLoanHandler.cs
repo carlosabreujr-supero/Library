@@ -26,13 +26,14 @@ public sealed class CloseLoanService(
     ILoanRepository loans,
     IAuditTrail audit,
     IUnitOfWork unitOfWork,
+    IReadCache cache,
     TimeProvider clock)
 {
     public async Task<LoanDto> CloseAsync(Guid id, LoanStatus target, string auditAction, CancellationToken ct)
     {
         if (id == Guid.Empty) throw new NotFoundException($"Empréstimo {id} não encontrado.");
 
-        return await unitOfWork.ExecuteInTransactionAsync(async token =>
+        var dto = await unitOfWork.ExecuteInTransactionAsync(async token =>
         {
             var now = clock.GetUtcNow().UtcDateTime;
 
@@ -66,5 +67,8 @@ public sealed class CloseLoanService(
 
             return LoanDto.From(loan);
         }, ct);
+
+        await cache.InvalidateAsync(CacheAreas.ForBook(dto.BookId));
+        return dto;
     }
 }

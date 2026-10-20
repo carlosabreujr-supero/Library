@@ -7,7 +7,7 @@ using LibraryLoans.Domain.Entities;
 namespace LibraryLoans.Application.Books;
 
 public sealed class CreateBookHandler(
-    IBookRepository books, IAuditTrail audit, IUnitOfWork unitOfWork, TimeProvider clock)
+    IBookRepository books, IAuditTrail audit, IUnitOfWork unitOfWork, IReadCache cache, TimeProvider clock)
 {
     public async Task<BookDto> HandleAsync(CreateBookCommand command, CancellationToken ct)
     {
@@ -38,13 +38,14 @@ public sealed class CreateBookHandler(
             book.Title, book.Author, book.Isbn, book.TotalCopies, book.AvailableCopies
         });
         await unitOfWork.SaveChangesAsync(ct);
+        await cache.InvalidateAsync(CacheAreas.ForBook(book.Id));
 
         return BookDto.From(book);
     }
 }
 
 public sealed class UpdateBookHandler(
-    IBookRepository books, IAuditTrail audit, IUnitOfWork unitOfWork, TimeProvider clock)
+    IBookRepository books, IAuditTrail audit, IUnitOfWork unitOfWork, IReadCache cache, TimeProvider clock)
 {
     public async Task<BookDto> HandleAsync(UpdateBookCommand command, CancellationToken ct)
     {
@@ -102,13 +103,14 @@ public sealed class UpdateBookHandler(
         book.UpdatedAtUtc = clock.GetUtcNow().UtcDateTime;
         audit.Record(nameof(Book), book.Id, AuditActions.BookUpdated, changes);
         await unitOfWork.SaveChangesAsync(ct);
+        await cache.InvalidateAsync(CacheAreas.ForBook(book.Id));
 
         return BookDto.From(book);
     }
 }
 
 public sealed class DeactivateBookHandler(
-    IBookRepository books, IAuditTrail audit, IUnitOfWork unitOfWork, TimeProvider clock)
+    IBookRepository books, IAuditTrail audit, IUnitOfWork unitOfWork, IReadCache cache, TimeProvider clock)
 {
     public async Task HandleAsync(DeactivateBookCommand command, CancellationToken ct)
     {
@@ -123,6 +125,7 @@ public sealed class DeactivateBookHandler(
         book.UpdatedAtUtc = clock.GetUtcNow().UtcDateTime;
         audit.Record(nameof(Book), book.Id, AuditActions.BookDeactivated, new { book.Title, book.Isbn });
         await unitOfWork.SaveChangesAsync(ct);
+        await cache.InvalidateAsync(CacheAreas.ForBook(book.Id));
     }
 }
 
@@ -136,7 +139,7 @@ public sealed class GetBookHandler(IBookRepository books)
     }
 }
 
-public sealed class ListBooksHandler(IBookRepository books)
+public sealed class ListBooksHandler(IBookRepository books, IReadCache cache)
 {
     public const int MaxPageSize = 100;
 
@@ -147,7 +150,18 @@ public sealed class ListBooksHandler(IBookRepository books)
         if (query.PageSize is < 1 or > MaxPageSize) errors["pageSize"] = [$"pageSize deve estar entre 1 e {MaxPageSize}."];
         BookValidation.ThrowIfAny(errors);
 
-        var result = await books.ListAsync(query.Page, query.PageSize, query.Search?.Trim(), query.IncludeInactive, ct);
-        return new PagedResult<BookDto>(result.Items.Select(BookDto.From).ToList(), result.Page, result.PageSize, result.TotalCount);
+        var search = query.Search?.Trim();
+        var key = ListKey(query.Page, query.PageSize, search, query.IncludeInactive);
+
+        return await cache.GetOrCreateAsync(CacheAreas.BookList, key, async token =>
+        {
+            var result = await books.ListAsync(query.Page, query.PageSize, search, query.IncludeInactive, token);
+            return new PagedResult<BookDto>(result.Items.Select(BookDto.From).ToList(), result.Page, result.PageSize, result.TotalCount);
+        }, ct);
     }
+
+    // Busca em hash: evita caracteres especiais e tamanho ilimitado na chave do Redis.
+    private static string ListKey(int page, int pageSize, string? search, bool includeInactive) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"{page}|{pageSize}|{includeInactive}|{search}")));
 }

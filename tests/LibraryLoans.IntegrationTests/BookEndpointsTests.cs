@@ -20,13 +20,17 @@ public sealed class PostgresTheoryAttribute : TheoryAttribute
     // Idem: nunca ignorado.
 }
 
-public sealed class PostgresFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class PostgresFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Postgres", RequireConnectionString());
         builder.UseSetting("ConnectionStrings:Redis", "localhost:6379");
+        ConfigureCache(builder);
     }
+
+    // Por padrão o cache fica desligado: os demais testes validam o comportamento direto do PostgreSQL.
+    protected virtual void ConfigureCache(IWebHostBuilder builder) => builder.UseSetting("Cache:Enabled", "false");
 
     private static string RequireConnectionString() =>
         Environment.GetEnvironmentVariable("TEST_POSTGRES") is { Length: > 0 } cs
