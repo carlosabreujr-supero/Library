@@ -96,6 +96,29 @@ public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFa
     }
 
     [PostgresFact]
+    public async Task Two_parallel_requests_for_single_copy_yield_one_success_and_one_unavailability()
+    {
+        var bookId = await CreateBook(1);
+        var readerA = await CreateReader();
+        var readerB = await CreateReader();
+
+        using var replicaB = new PostgresFactory();
+        var clientB = replicaB.CreateClient();
+        using var gate = new ManualResetEventSlim(false);
+
+        // Sincronização por barreira (sem delays): ambas as requisições são liberadas ao mesmo tempo.
+        var a = Task.Run(() => { gate.Wait(); return _client.PostLoanAsync(new { bookId, readerId = readerA }); });
+        var b = Task.Run(() => { gate.Wait(); return clientB.PostLoanAsync(new { bookId, readerId = readerB }); });
+        gate.Set();
+        var responses = await Task.WhenAll(a, b);
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Created);
+        var rejected = Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+        Assert.Contains("exemplares", await rejected.Content.ReadAsStringAsync());
+        Assert.Equal((0, 1), await State(bookId));
+    }
+
+    [PostgresFact]
     public async Task Stock_never_goes_negative_with_multiple_copies()
     {
         var bookId = await CreateBook(5);

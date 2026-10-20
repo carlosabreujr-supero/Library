@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddSingleton(idempotency);
         services.AddHostedService<IdempotencyPurgeService>();
 
+        services.AddScoped<IAuditQueries, AuditQueries>();
         services.AddScoped<ILoanQueries, LoanQueries>();
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
