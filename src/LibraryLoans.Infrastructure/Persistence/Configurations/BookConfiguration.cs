@@ -23,5 +23,8 @@ public class BookConfiguration : IEntityTypeConfiguration<Book>
         builder.Property(b => b.UpdatedAtUtc).HasColumnType("timestamp with time zone");
 
         builder.HasIndex(b => b.Isbn).IsUnique().HasDatabaseName("ux_books_isbn");
+
+        // xmin do PostgreSQL como token de concorrência otimista (coluna de sistema, sem coluna na tabela).
+        builder.Property<uint>("xmin").HasColumnName("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
     }
 }
