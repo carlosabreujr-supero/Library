@@ -74,3 +74,4 @@ Desktop.ini
 
 # Local env secrets
 .env
+docker-compose.override.yml
