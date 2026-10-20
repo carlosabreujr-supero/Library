@@ -9,6 +9,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=${POSTGRES_DB:?};Username=${POSTGRES_USER:?};Password=${POSTGRES_PASSWORD:?}"
       ConnectionStrings__Redis: "redis:6379"
+      Loans__DefaultLoanDays: ${LOAN_DEFAULT_DAYS:-14}
     depends_on:
       postgres:
         condition: service_healthy

@@ -10,4 +10,12 @@ internal sealed class ReaderRepository(LibraryDbContext db) : IReaderRepository
 
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
         db.Readers.AnyAsync(r => r.Id == id, cancellationToken);
+
+    public Task<Reader?> GetAsNoTrackingAsync(Guid id, CancellationToken cancellationToken) =>
+        db.Readers.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+}
+
+internal sealed class LoanRepository(LibraryDbContext db) : ILoanRepository
+{
+    public void Add(Loan loan) => db.Loans.Add(loan);
 }

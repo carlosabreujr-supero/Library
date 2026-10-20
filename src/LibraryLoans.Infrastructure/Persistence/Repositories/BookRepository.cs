@@ -18,6 +18,16 @@ internal sealed class BookRepository(LibraryDbContext db) : IBookRepository
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
         db.Books.AnyAsync(b => b.Id == id, cancellationToken);
 
+    public async Task<bool> TryReserveCopyAsync(Guid id, DateTime nowUtc, CancellationToken cancellationToken)
+    {
+        var affected = await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE books
+            SET "AvailableCopies" = "AvailableCopies" - 1, "UpdatedAtUtc" = {nowUtc}
+            WHERE "Id" = {id} AND "IsActive" = TRUE AND "AvailableCopies" > 0
+            """, cancellationToken);
+        return affected == 1;
+    }
+
     public async Task<PagedResult<Book>> ListAsync(
         int page, int pageSize, string? search, bool includeInactive, CancellationToken cancellationToken)
     {
