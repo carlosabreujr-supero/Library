@@ -9,6 +9,10 @@ builder.Services
     .AddApplication()
     .AddInfrastructure(builder.Configuration);
 
+var loanSettings = builder.Configuration.GetSection("Loans").Get<LibraryLoans.Application.Loans.LoanSettings>() ?? new();
+loanSettings.Validate();
+builder.Services.AddSingleton(loanSettings);
+
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<LibraryLoans.Application.Abstractions.IRequestContext, HttpRequestContext>();
@@ -29,6 +33,7 @@ app.UseStatusCodePages();
 
 app.MapBookEndpoints();
 app.MapReaderEndpoints();
+app.MapLoanEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 

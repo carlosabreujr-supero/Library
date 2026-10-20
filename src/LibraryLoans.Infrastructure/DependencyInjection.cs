@@ -18,6 +18,7 @@ public static class DependencyInjection
 
         services.AddScoped<IBookRepository, BookRepository>();
         services.AddScoped<IReaderRepository, ReaderRepository>();
+        services.AddScoped<ILoanRepository, LoanRepository>();
         services.AddScoped<ILoanQueries, LoanQueries>();
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();

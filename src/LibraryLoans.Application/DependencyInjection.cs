@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<CreateReaderHandler>();
         services.AddScoped<GetReaderLoansHandler>();
         services.AddScoped<GetBookHistoryHandler>();
+        services.AddScoped<CreateLoanHandler>();
 
         return services;
     }

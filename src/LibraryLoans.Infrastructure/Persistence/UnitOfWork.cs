@@ -7,6 +7,15 @@ namespace LibraryLoans.Infrastructure.Persistence;
 
 internal sealed class UnitOfWork(LibraryDbContext db) : IUnitOfWork
 {
+    public async Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken)
+    {
+        // O dispose sem commit (por exceção) reverte a transação.
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var result = await operation(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try

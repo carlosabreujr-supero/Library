@@ -7,6 +7,12 @@ public interface IReaderRepository
 {
     void Add(Reader reader);
     Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
+    Task<Reader?> GetAsNoTrackingAsync(Guid id, CancellationToken cancellationToken);
+}
+
+public interface ILoanRepository
+{
+    void Add(Loan loan);
 }
 
 public interface ILoanQueries
