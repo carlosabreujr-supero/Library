@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using LibraryLoans.Infrastructure.Persistence;
@@ -12,35 +12,32 @@ namespace LibraryLoans.IntegrationTests;
 // Requer PostgreSQL: defina TEST_POSTGRES, ex.: Host=localhost;Port=5433;Database=library_loans_tests;Username=library;Password=<senha>
 public sealed class PostgresFactAttribute : FactAttribute
 {
-    public PostgresFactAttribute()
-    {
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TEST_POSTGRES")))
-            Skip = "Defina TEST_POSTGRES para executar testes com PostgreSQL.";
-    }
+    // Testes críticos nunca são ignorados: sem TEST_POSTGRES, a fábrica falha de forma explícita.
 }
 
 public sealed class PostgresTheoryAttribute : TheoryAttribute
 {
-    public PostgresTheoryAttribute()
-    {
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TEST_POSTGRES")))
-            Skip = "Defina TEST_POSTGRES para executar testes com PostgreSQL.";
-    }
+    // Idem: nunca ignorado.
 }
 
 public sealed class PostgresFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseSetting("ConnectionStrings:Postgres", Environment.GetEnvironmentVariable("TEST_POSTGRES") ?? "Host=localhost");
+        builder.UseSetting("ConnectionStrings:Postgres", RequireConnectionString());
         builder.UseSetting("ConnectionStrings:Redis", "localhost:6379");
     }
+
+    private static string RequireConnectionString() =>
+        Environment.GetEnvironmentVariable("TEST_POSTGRES") is { Length: > 0 } cs
+            ? cs
+            : throw new InvalidOperationException(
+                "Defina TEST_POSTGRES com a connection string de um PostgreSQL de testes (ver docs/testing.md).");
 
     public async ValueTask InitializeAsync() => await ((IAsyncLifetime)this).InitializeAsync();
 
     async Task IAsyncLifetime.InitializeAsync()
     {
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TEST_POSTGRES"))) return;
         using var scope = Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<LibraryDbContext>().Database.MigrateAsync();
     }
