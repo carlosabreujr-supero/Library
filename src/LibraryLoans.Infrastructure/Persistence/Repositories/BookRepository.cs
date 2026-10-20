@@ -28,6 +28,16 @@ internal sealed class BookRepository(LibraryDbContext db) : IBookRepository
         return affected == 1;
     }
 
+    public async Task<bool> ReleaseCopyAsync(Guid id, DateTime nowUtc, CancellationToken cancellationToken)
+    {
+        var affected = await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE books
+            SET "AvailableCopies" = "AvailableCopies" + 1, "UpdatedAtUtc" = {nowUtc}
+            WHERE "Id" = {id} AND "AvailableCopies" < "TotalCopies"
+            """, cancellationToken);
+        return affected == 1;
+    }
+
     public async Task<PagedResult<Book>> ListAsync(
         int page, int pageSize, string? search, bool includeInactive, CancellationToken cancellationToken)
     {

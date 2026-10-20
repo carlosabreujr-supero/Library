@@ -22,6 +22,10 @@ public static class DependencyInjection
         services.AddScoped<GetReaderLoansHandler>();
         services.AddScoped<GetBookHistoryHandler>();
         services.AddScoped<CreateLoanHandler>();
+        services.AddScoped<CloseLoanService>();
+        services.AddScoped<ReturnLoanHandler>();
+        services.AddScoped<CancelLoanHandler>();
+        services.AddScoped<ListAuditEventsHandler>();
 
         return services;
     }

@@ -11,6 +11,7 @@ public interface IBookRepository
 
     // UPDATE condicional atômico no PostgreSQL; true somente se exatamente uma linha foi afetada.
     Task<bool> TryReserveCopyAsync(Guid id, DateTime nowUtc, CancellationToken cancellationToken);
+    Task<bool> ReleaseCopyAsync(Guid id, DateTime nowUtc, CancellationToken cancellationToken);
     void Add(Book book);
     Task<PagedResult<Book>> ListAsync(int page, int pageSize, string? search, bool includeInactive, CancellationToken cancellationToken);
 }
