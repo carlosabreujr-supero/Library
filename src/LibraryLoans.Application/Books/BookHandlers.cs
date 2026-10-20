@@ -1,4 +1,5 @@
-using LibraryLoans.Application.Abstractions;
+﻿using LibraryLoans.Application.Abstractions;
+using LibraryLoans.Application.Audit;
 using LibraryLoans.Application.Common;
 using LibraryLoans.Application.Exceptions;
 using LibraryLoans.Domain.Entities;
@@ -32,7 +33,7 @@ public sealed class CreateBookHandler(
         };
 
         books.Add(book);
-        audit.Record(nameof(Book), book.Id, "BookCreated", new
+        audit.Record(nameof(Book), book.Id, AuditActions.BookCreated, new
         {
             book.Title, book.Author, book.Isbn, book.TotalCopies, book.AvailableCopies
         });
@@ -99,7 +100,7 @@ public sealed class UpdateBookHandler(
             return BookDto.From(book);
 
         book.UpdatedAtUtc = clock.GetUtcNow().UtcDateTime;
-        audit.Record(nameof(Book), book.Id, "BookUpdated", changes);
+        audit.Record(nameof(Book), book.Id, AuditActions.BookUpdated, changes);
         await unitOfWork.SaveChangesAsync(ct);
 
         return BookDto.From(book);
@@ -120,7 +121,7 @@ public sealed class DeactivateBookHandler(
 
         book.IsActive = false;
         book.UpdatedAtUtc = clock.GetUtcNow().UtcDateTime;
-        audit.Record(nameof(Book), book.Id, "BookDeactivated", new { book.Title, book.Isbn });
+        audit.Record(nameof(Book), book.Id, AuditActions.BookDeactivated, new { book.Title, book.Isbn });
         await unitOfWork.SaveChangesAsync(ct);
     }
 }

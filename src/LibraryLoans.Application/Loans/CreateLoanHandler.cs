@@ -1,7 +1,8 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using LibraryLoans.Application.Abstractions;
+using LibraryLoans.Application.Audit;
 using LibraryLoans.Application.Exceptions;
 using LibraryLoans.Domain.Entities;
 
@@ -111,7 +112,7 @@ public sealed class CreateLoanHandler(
             };
 
             loans.Add(loan);
-            audit.Record(nameof(Loan), loan.Id, "LoanCreated", new
+            audit.Record(nameof(Loan), loan.Id, AuditActions.LoanCreated, new
             {
                 loan.BookId, loan.ReaderId, loan.BorrowedAtUtc, loan.DueAtUtc
             });

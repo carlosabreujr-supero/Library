@@ -34,6 +34,7 @@ app.UseStatusCodePages();
 app.MapBookEndpoints();
 app.MapReaderEndpoints();
 app.MapLoanEndpoints();
+app.MapAuditEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
