@@ -24,6 +24,11 @@ public interface IIdempotencyRepository
     Task CompleteAsync(string key, Guid loanId, int statusCode, string body, CancellationToken cancellationToken);
 }
 
+public interface IAuditQueries
+{
+    Task<PagedResult<AuditEvent>> ListAsync(Audit.AuditEventFilter filter, int page, int pageSize, CancellationToken cancellationToken);
+}
+
 public interface ILoanQueries
 {
     Task<PagedResult<Loan>> ListByReaderAsync(Guid readerId, LoanStatus? status, int page, int pageSize, CancellationToken cancellationToken);

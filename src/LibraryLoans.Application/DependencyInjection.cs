@@ -1,3 +1,4 @@
+using LibraryLoans.Application.Audit;
 using LibraryLoans.Application.Books;
 using LibraryLoans.Application.Loans;
 using LibraryLoans.Application.Readers;
@@ -22,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<GetReaderLoansHandler>();
         services.AddScoped<GetBookHistoryHandler>();
         services.AddScoped<CreateLoanHandler>();
+        services.AddScoped<ListAuditEventsHandler>();
 
         return services;
     }
