@@ -15,6 +15,15 @@ public interface ILoanRepository
     void Add(Loan loan);
 }
 
+public interface IIdempotencyRepository
+{
+    // INSERT ... ON CONFLICT DO NOTHING. Se outra transação detém a mesma chave não confirmada,
+    // o PostgreSQL bloqueia até o commit/rollback dela. True = esta transação passou a deter a chave.
+    Task<bool> TryBeginAsync(string key, string requestHash, DateTime nowUtc, CancellationToken cancellationToken);
+    Task<IdempotencyRecord?> GetAsync(string key, CancellationToken cancellationToken);
+    Task CompleteAsync(string key, Guid loanId, int statusCode, string body, CancellationToken cancellationToken);
+}
+
 public interface ILoanQueries
 {
     Task<PagedResult<Loan>> ListByReaderAsync(Guid readerId, LoanStatus? status, int page, int pageSize, CancellationToken cancellationToken);

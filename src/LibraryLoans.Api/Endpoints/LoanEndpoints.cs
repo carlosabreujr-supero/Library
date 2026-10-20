@@ -7,14 +7,23 @@ public sealed record CreateLoanRequest(Guid? BookId, Guid? ReaderId);
 
 public static class LoanEndpoints
 {
+    public const string IdempotencyKeyHeader = "Idempotency-Key";
+    public const string ReplayedHeader = "Idempotent-Replayed";
+
     public static IEndpointRouteBuilder MapLoanEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/loans").WithTags("Loans");
 
-        group.MapPost("/", async (CreateLoanRequest request, CreateLoanHandler handler, CancellationToken ct) =>
+        group.MapPost("/", async (
+            CreateLoanRequest request, HttpContext http, CreateLoanHandler handler, CancellationToken ct) =>
         {
-            var loan = await handler.HandleAsync(new CreateLoanCommand(request.BookId, request.ReaderId), ct);
-            return Results.Json(loan, statusCode: StatusCodes.Status201Created);
+            var key = http.Request.Headers[IdempotencyKeyHeader].ToString();
+            var result = await handler.HandleAsync(new CreateLoanCommand(request.BookId, request.ReaderId, key), ct);
+
+            if (result.Replayed)
+                http.Response.Headers[ReplayedHeader] = "true";
+
+            return Results.Content(result.Body, "application/json", statusCode: result.StatusCode);
         });
 
         return app;

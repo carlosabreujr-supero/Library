@@ -11,6 +11,17 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LibraryLoans.IntegrationTests;
 
+public static class LoanHttpExtensions
+{
+    // Cada chamada usa uma chave nova, salvo quando informada.
+    public static Task<HttpResponseMessage> PostLoanAsync(this HttpClient client, object payload, string? key = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/loans") { Content = JsonContent.Create(payload) };
+        request.Headers.Add("Idempotency-Key", key ?? Guid.NewGuid().ToString());
+        return client.SendAsync(request);
+    }
+}
+
 public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();
@@ -51,7 +62,7 @@ public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFa
         var bookId = await CreateBook(2);
         var readerId = await CreateReader();
 
-        var response = await _client.PostAsJsonAsync("/loans", new { bookId, readerId });
+        var response = await _client.PostLoanAsync(new { bookId, readerId });
         var body = await Json(response);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -77,7 +88,7 @@ public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFa
         var clients = new[] { _client, replicaB.CreateClient() };
 
         var responses = await Task.WhenAll(Enumerable.Range(0, 40).Select(i =>
-            clients[i % 2].PostAsJsonAsync("/loans", new { bookId, readerId })));
+            clients[i % 2].PostLoanAsync(new { bookId, readerId })));
 
         Assert.Equal(1, responses.Count(r => r.StatusCode == HttpStatusCode.Created));
         Assert.Equal(39, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
@@ -91,7 +102,7 @@ public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFa
         var readerId = await CreateReader();
 
         var responses = await Task.WhenAll(Enumerable.Range(0, 25).Select(_ =>
-            _client.PostAsJsonAsync("/loans", new { bookId, readerId })));
+            _client.PostLoanAsync(new { bookId, readerId })));
 
         Assert.Equal(5, responses.Count(r => r.StatusCode == HttpStatusCode.Created));
         Assert.Equal((0, 5), await State(bookId));
@@ -103,7 +114,7 @@ public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFa
         var bookId = await CreateBook(0);
         var readerId = await CreateReader();
 
-        var response = await _client.PostAsJsonAsync("/loans", new { bookId, readerId });
+        var response = await _client.PostLoanAsync(new { bookId, readerId });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal((0, 0), await State(bookId));
@@ -116,7 +127,7 @@ public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFa
         var readerId = await CreateReader();
         await _client.DeleteAsync($"/books/{bookId}");
 
-        var response = await _client.PostAsJsonAsync("/loans", new { bookId, readerId });
+        var response = await _client.PostLoanAsync(new { bookId, readerId });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal((3, 0), await State(bookId));
@@ -133,7 +144,7 @@ public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFa
             await db.Readers.Where(r => r.Id == readerId).ExecuteUpdateAsync(s => s.SetProperty(r => r.IsActive, false));
         }
 
-        var response = await _client.PostAsJsonAsync("/loans", new { bookId, readerId });
+        var response = await _client.PostLoanAsync(new { bookId, readerId });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal((1, 0), await State(bookId));
@@ -145,10 +156,10 @@ public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFa
         var bookId = await CreateBook(1);
         var readerId = await CreateReader();
 
-        Assert.Equal(HttpStatusCode.NotFound, (await _client.PostAsJsonAsync("/loans", new { bookId = Guid.NewGuid(), readerId })).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await _client.PostAsJsonAsync("/loans", new { bookId, readerId = Guid.NewGuid() })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync("/loans", new { bookId })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync("/loans", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.PostLoanAsync(new { bookId = Guid.NewGuid(), readerId })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.PostLoanAsync(new { bookId, readerId = Guid.NewGuid() })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostLoanAsync(new { bookId })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostLoanAsync(new { })).StatusCode);
         Assert.Equal((1, 0), await State(bookId));
     }
 
@@ -160,12 +171,12 @@ public class CreateLoanTests(PostgresFactory factory) : IClassFixture<PostgresFa
 
         using var failing = factory.WithWebHostBuilder(b => b.ConfigureServices(s =>
             s.Replace(ServiceDescriptor.Scoped<IAuditTrail, ThrowingAuditTrail>())));
-        var response = await failing.CreateClient().PostAsJsonAsync("/loans", new { bookId, readerId });
+        var response = await failing.CreateClient().PostLoanAsync(new { bookId, readerId });
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal((1, 0), await State(bookId));
 
-        var retry = await _client.PostAsJsonAsync("/loans", new { bookId, readerId });
+        var retry = await _client.PostLoanAsync(new { bookId, readerId });
         Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
     }
 
