@@ -1,0 +1,13 @@
+using LibraryLoans.Application.Abstractions;
+using LibraryLoans.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace LibraryLoans.Infrastructure.Persistence.Repositories;
+
+internal sealed class ReaderRepository(LibraryDbContext db) : IReaderRepository
+{
+    public void Add(Reader reader) => db.Readers.Add(reader);
+
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+        db.Readers.AnyAsync(r => r.Id == id, cancellationToken);
+}
