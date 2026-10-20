@@ -12,10 +12,10 @@ docker compose up -d postgres  # PostgreSQL local
 
 O `dotnet ef` lê a connection string da variável de ambiente `ConnectionStrings__Postgres`;
 nada é gravado no código. O compose não publica a porta do PostgreSQL; para rodar o `dotnet ef`
-no host, crie um `docker-compose.override.yml` local com `ports: ["5432:5432"]` no serviço `postgres`.
+no host, crie um `docker-compose.override.yml` local com `ports: ["5433:5432"]` no serviço `postgres`.
 
 ```powershell
-$env:ConnectionStrings__Postgres = "Host=localhost;Port=5432;Database=library_loans;Username=library;Password=<senha do .env>"
+$env:ConnectionStrings__Postgres = "Host=localhost;Port=5433;Database=library_loans;Username=library;Password=<senha do .env>"
 ```
 
 ## Criar uma migration
