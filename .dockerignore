@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+tests/
+Dockerfile
+docker-compose*.yml
+**/launchSettings.json
