@@ -71,3 +71,6 @@ Desktop.ini
 # Pacotes gerados
 *.nupkg
 *.snupkg
+
+# Local env secrets
+.env
