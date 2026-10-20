@@ -13,6 +13,10 @@ public interface IReaderRepository
 public interface ILoanRepository
 {
     void Add(Loan loan);
+    Task<Loan?> GetAsNoTrackingAsync(Guid id, CancellationToken cancellationToken);
+
+    // UPDATE condicional (Status = 'Active'): só uma transação vence a transição. Retorna o BookId, ou null se não houve transição.
+    Task<Guid?> TryCloseAsync(Guid id, LoanStatus newStatus, DateTime nowUtc, CancellationToken cancellationToken);
 }
 
 public interface IIdempotencyRepository

@@ -19,6 +19,15 @@ public sealed class PostgresFactAttribute : FactAttribute
     }
 }
 
+public sealed class PostgresTheoryAttribute : TheoryAttribute
+{
+    public PostgresTheoryAttribute()
+    {
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TEST_POSTGRES")))
+            Skip = "Defina TEST_POSTGRES para executar testes com PostgreSQL.";
+    }
+}
+
 public sealed class PostgresFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)

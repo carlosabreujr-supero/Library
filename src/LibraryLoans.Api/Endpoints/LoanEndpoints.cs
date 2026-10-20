@@ -26,6 +26,12 @@ public static class LoanEndpoints
             return Results.Content(result.Body, "application/json", statusCode: result.StatusCode);
         });
 
+        group.MapPost("/{id:guid}/return", async (Guid id, ReturnLoanHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(new ReturnLoanCommand(id), ct)));
+
+        group.MapPost("/{id:guid}/cancel", async (Guid id, CancelLoanHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(new CancelLoanCommand(id), ct)));
+
         return app;
     }
 }
