@@ -17,6 +17,7 @@ dotnet test tests\LibraryLoans.IntegrationTests
 ```
 
 - Use um banco dedicado (`library_loans_tests`), não o de desenvolvimento.
+- Testes de cache (`RedisCacheTests`) exigem Redis real: `docker compose up -d redis` (o override local publica a porta 6380) e `$env:TEST_REDIS = "localhost:6380,allowAdmin=true"`. Sem a variável, falham explicitamente. Os demais testes rodam com o cache desligado; `RedisFallbackTests` simula Redis inacessível.
 - Isolamento: cada teste cria seus próprios livros (ISBN aleatório) e leitores e só consulta os próprios ids; nenhum teste depende de ordem ou de dados anteriores, portanto podem ser repetidos sem limpar o banco.
 - Concorrência: duas instâncias da API (réplicas) compartilham o banco; as requisições são liberadas por uma barreira, sem `Task.Delay`.
 - A tabela `audit_events` é append-only (trigger); para limpar o banco de testes use `DROP DATABASE`/`TRUNCATE`.

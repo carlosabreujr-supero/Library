@@ -45,6 +45,7 @@ public sealed class CreateLoanHandler(
     IIdempotencyRepository idempotency,
     IAuditTrail audit,
     IUnitOfWork unitOfWork,
+    IReadCache cache,
     LoanSettings settings,
     TimeProvider clock)
 {
@@ -68,7 +69,7 @@ public sealed class CreateLoanHandler(
         var readerId = command.ReaderId!.Value;
         var requestHash = ComputeHash(bookId, readerId);
 
-        return await unitOfWork.ExecuteInTransactionAsync(async token =>
+        var result = await unitOfWork.ExecuteInTransactionAsync(async token =>
         {
             var now = clock.GetUtcNow().UtcDateTime;
 
@@ -124,6 +125,12 @@ public sealed class CreateLoanHandler(
 
             return new CreateLoanResult(CreatedStatusCode, body, Replayed: false);
         }, ct);
+
+        // Invalida somente após o commit; repetição idempotente não altera estoque.
+        if (!result.Replayed)
+            await cache.InvalidateAsync(CacheAreas.ForBook(bookId));
+
+        return result;
     }
 
     // Hash dos campos relevantes em forma canônica (independe de formatação/ordem do JSON).
