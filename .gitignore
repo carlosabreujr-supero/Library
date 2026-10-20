@@ -1,0 +1,73 @@
+
+# .NET - build
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+publish/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Rider / IDEs
+.idea/
+*. DotSettings.user
+
+# Logs e resultados de testes
+*.log
+[Ll]og/
+[Ll]ogs/
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+coverage/
+coverage.*
+*.trx
+*.coverage
+BenchmarkDotNet.Artifacts/
+
+# Segredos e variáveis de ambiente
+.env
+.env.*
+!.env.example
+secrets.json
+appsettings.Development.json
+*.pfx
+*.publishsettings
+*.pubxml
+
+# Não versionar chaves privadas
+*.key
+*.pem
+
+# Bancos locais e arquivos de dados
+*.db
+*.sqlite
+*.sqlite3
+*.mdf
+*.ldf
+*.ndf
+
+# Docker - dados persistidos localmente
+docker-data/
+postgres-data/
+redis-data/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporários
+*.tmp
+*.bak
+*~
+
+# Pacotes gerados
+*.nupkg
+*.snupkg
