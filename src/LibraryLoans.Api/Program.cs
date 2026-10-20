@@ -1,3 +1,4 @@
+using LibraryLoans.Api.Endpoints;
 using LibraryLoans.Api.Infrastructure;
 using LibraryLoans.Application;
 using LibraryLoans.Infrastructure;
@@ -9,6 +10,8 @@ builder.Services
     .AddInfrastructure(builder.Configuration);
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<LibraryLoans.Application.Abstractions.IRequestContext, HttpRequestContext>();
 builder.Services.AddProblemDetails(options =>
     options.CustomizeProblemDetails = ctx =>
     {
@@ -23,6 +26,8 @@ var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+app.MapBookEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 

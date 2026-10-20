@@ -35,3 +35,13 @@ Em ambientes controlados, prefira gerar um script idempotente e aplicÃ¡-lo uma Ã
 ```powershell
 dotnet ef migrations script --idempotent --project src/LibraryLoans.Infrastructure --startup-project src/LibraryLoans.Infrastructure -o migrate.sql
 ```
+
+## Testes de integração
+
+Os testes com PostgreSQL exigem a variável `TEST_POSTGRES` (banco separado; as migrations são aplicadas automaticamente nele):
+
+```powershell
+$env:TEST_POSTGRES = "Host=localhost;Port=5433;Database=library_loans_tests;Username=library;Password=<senha do .env>"
+dotnet test
+```
+
