@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: library-loans-api
+  labels:
+    app.kubernetes.io/name: library-loans-api
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  Loans__DefaultLoanDays: "14"
+  Idempotency__RetentionHours: "24"
+  Cache__Enabled: "true"
+  Cache__TtlSeconds: "30"
+  Health__RedisRequired: "false"
+  OTEL_SERVICE_NAME: "LibraryLoans.Api"
+  # Opcional: defina para exportar traces/metricas/logs via OTLP.
+  # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
