@@ -117,6 +117,8 @@ Invoke-RestMethod -Method Post "$api/loans/$($loan.id)/return"
 Invoke-RestMethod "$api/books/$($book.id)/availability"
 ```
 
+O arquivo [requests.http](requests.http) reúne todas as chamadas (health, livros, leitores, empréstimos, histórico, auditoria e casos de erro) para a extensão REST Client ou o suporte a `.http` do VS Code/Visual Studio.
+
 Equivalente em curl: `curl -X POST localhost:8080/loans -H "Content-Type: application/json" -H "Idempotency-Key: $(uuidgen)" -d '{"bookId":"...","readerId":"..."}'`.
 
 ## 8. Concorrência no PostgreSQL
