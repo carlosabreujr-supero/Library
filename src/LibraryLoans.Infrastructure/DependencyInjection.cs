@@ -18,7 +18,7 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("Postgres")
             ?? throw new InvalidOperationException("ConnectionStrings:Postgres não configurada.");
 
-        services.AddDbContext<LibraryDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<LibraryDbContext>(options => options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(2), errorCodesToAdd: null)));
 
         services.AddScoped<IBookRepository, BookRepository>();
         services.AddScoped<IReaderRepository, ReaderRepository>();

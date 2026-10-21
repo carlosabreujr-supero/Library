@@ -195,7 +195,7 @@ Ver [docs/cache.md](docs/cache.md).
 ## 14. Limitações conhecidas e evolução para produção
 
 - Sem autenticação/autorização: o ator da auditoria é anônimo/sistema.
-- Sem retry automático de conexão: após reinício do PostgreSQL, a primeira requisição que usar uma conexão do pool pode retornar 500; as seguintes se recuperam (readiness fica 503 enquanto o banco estiver fora).
+- Falhas transitórias de conexão com o PostgreSQL são repetidas (até 3 vezes, `EnableRetryOnFailure`): a transação inteira é reexecutada, o que é seguro porque estoque e idempotência são decididos no banco. Se a conexão cair exatamente durante o commit, um `return`/`cancel` repetido pode receber 409 mesmo tendo sido aplicado.
 - Chave de idempotência global (não por cliente); expurgo por tempo (24 h), portanto repetições após a retenção criam novo empréstimo.
 - Sem multas, reservas, renovações nem prazo por tipo de leitor (fora do escopo).
 - Cache só de leitura e com TTL curto: leituras podem ficar defasadas até a invalidação/TTL; `availability` em cache é informativo.

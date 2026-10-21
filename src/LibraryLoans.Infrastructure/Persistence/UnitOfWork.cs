@@ -1,4 +1,4 @@
-using LibraryLoans.Application.Abstractions;
+﻿using LibraryLoans.Application.Abstractions;
 using LibraryLoans.Application.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -9,13 +9,20 @@ internal sealed class UnitOfWork(LibraryDbContext db) : IUnitOfWork
 {
     public async Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken)
     {
-        // O dispose sem commit (por exceção) reverte a transação.
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        var result = await operation(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return result;
+        // A estratégia de retry repete a unidade inteira (transação + operação) em falhas transitórias de conexão.
+        // O estado rastreado de uma tentativa abortada é descartado; a operação é idempotente por construção
+        // (chave de idempotência / UPDATE condicional), então a repetição não duplica efeitos.
+        var strategy = db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async ct =>
+        {
+            db.ChangeTracker.Clear();
+            // O dispose sem commit (por exceção) reverte a transação.
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var result = await operation(ct);
+            await transaction.CommitAsync(ct);
+            return result;
+        }, cancellationToken);
     }
-
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try
