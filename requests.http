@@ -1,0 +1,256 @@
+### LibraryLoans API - requisições de exemplo
+### Use com a extensão "REST Client" (humao.rest-client) ou com o suporte a .http do VS Code/Visual Studio/Rider.
+### Pré-requisito: docker compose up --build -d   (API em http://localhost:8080)
+### Execute de cima para baixo: cada resposta nomeada alimenta as requisições seguintes.
+
+@baseUrl = http://localhost:8080
+@isbn = 9780132350884
+
+############################################################
+# Health checks
+############################################################
+
+### Liveness: só confirma que o processo responde (200)
+GET {{baseUrl}}/health/live
+
+### Readiness: PostgreSQL (obrigatório) e Redis (200 Healthy/Degraded, 503 Unhealthy)
+GET {{baseUrl}}/health/ready
+
+############################################################
+# Catálogo de livros
+############################################################
+
+### Criar livro (201)
+# @name createBook
+POST {{baseUrl}}/books
+Content-Type: application/json
+X-Correlation-Id: demo-create-book
+
+{
+  "title": "Clean Code",
+  "author": "Robert C. Martin",
+  "isbn": "{{isbn}}",
+  "totalCopies": 1
+}
+
+###
+@bookId = {{createBook.response.body.$.id}}
+
+### Criar livro com ISBN duplicado (409)
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "Outro título",
+  "author": "Outro autor",
+  "isbn": "{{isbn}}",
+  "totalCopies": 1
+}
+
+### Criar livro inválido (400, Problem Details)
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "",
+  "author": "",
+  "isbn": "123",
+  "totalCopies": -1
+}
+
+### Listar livros com paginação e busca (200)
+GET {{baseUrl}}/books?page=1&pageSize=10&search=Clean
+
+### Listar incluindo desativados
+GET {{baseUrl}}/books?includeInactive=true
+
+### Consultar livro (200)
+GET {{baseUrl}}/books/{{bookId}}
+
+### Consultar livro inexistente (404)
+GET {{baseUrl}}/books/00000000-0000-0000-0000-000000000001
+
+### Atualizar livro (200). AvailableCopies não pode ser alterado diretamente
+PATCH {{baseUrl}}/books/{{bookId}}
+Content-Type: application/json
+
+{
+  "title": "Clean Code (2ª edição)"
+}
+
+### Tentar alterar AvailableCopies (400: campo não aceito)
+PATCH {{baseUrl}}/books/{{bookId}}
+Content-Type: application/json
+
+{
+  "availableCopies": 99
+}
+
+### Disponibilidade (200)
+GET {{baseUrl}}/books/{{bookId}}/availability
+
+############################################################
+# Leitores
+############################################################
+
+### Cadastrar leitor (201)
+# @name createReader
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "name": "Ana"
+}
+
+###
+@readerId = {{createReader.response.body.$.id}}
+
+### Cadastrar segundo leitor (201)
+# @name createReader2
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "name": "Beto"
+}
+
+###
+@reader2Id = {{createReader2.response.body.$.id}}
+
+############################################################
+# Empréstimos (POST /loans exige Idempotency-Key)
+############################################################
+
+### Criar empréstimo (201)
+# @name createLoan
+POST {{baseUrl}}/loans
+Content-Type: application/json
+Idempotency-Key: demo-loan-key-0001
+
+{
+  "bookId": "{{bookId}}",
+  "readerId": "{{readerId}}"
+}
+
+###
+@loanId = {{createLoan.response.body.$.id}}
+
+### Repetir a mesma chave e payload (201 com header Idempotent-Replayed: true; sem novo empréstimo)
+POST {{baseUrl}}/loans
+Content-Type: application/json
+Idempotency-Key: demo-loan-key-0001
+
+{
+  "bookId": "{{bookId}}",
+  "readerId": "{{readerId}}"
+}
+
+### Mesma chave com payload diferente (409)
+POST {{baseUrl}}/loans
+Content-Type: application/json
+Idempotency-Key: demo-loan-key-0001
+
+{
+  "bookId": "{{bookId}}",
+  "readerId": "{{reader2Id}}"
+}
+
+### Sem Idempotency-Key (400)
+POST {{baseUrl}}/loans
+Content-Type: application/json
+
+{
+  "bookId": "{{bookId}}",
+  "readerId": "{{readerId}}"
+}
+
+### Livro sem exemplares disponíveis, com chave nova (409)
+POST {{baseUrl}}/loans
+Content-Type: application/json
+Idempotency-Key: demo-loan-key-0002
+
+{
+  "bookId": "{{bookId}}",
+  "readerId": "{{reader2Id}}"
+}
+
+### Disponibilidade depois do empréstimo
+GET {{baseUrl}}/books/{{bookId}}/availability
+
+### Devolver empréstimo (200)
+POST {{baseUrl}}/loans/{{loanId}}/return
+
+### Devolver de novo (409: transição inválida; estoque não é incrementado outra vez)
+POST {{baseUrl}}/loans/{{loanId}}/return
+
+### Empréstimo inexistente (404)
+POST {{baseUrl}}/loans/00000000-0000-0000-0000-000000000001/return
+
+### Criar outro empréstimo para cancelar (201)
+# @name createLoan2
+POST {{baseUrl}}/loans
+Content-Type: application/json
+Idempotency-Key: demo-loan-key-0003
+
+{
+  "bookId": "{{bookId}}",
+  "readerId": "{{reader2Id}}"
+}
+
+###
+@loan2Id = {{createLoan2.response.body.$.id}}
+
+### Cancelar empréstimo (200; o registro é preservado)
+POST {{baseUrl}}/loans/{{loan2Id}}/cancel
+
+############################################################
+# Histórico
+############################################################
+
+### Histórico de empréstimos do livro (ativos, devolvidos e cancelados)
+GET {{baseUrl}}/books/{{bookId}}/history?page=1&pageSize=20
+
+### Histórico do livro filtrado por status (Active, Returned, Cancelled)
+GET {{baseUrl}}/books/{{bookId}}/history?status=Returned
+
+### Histórico de empréstimos do leitor
+GET {{baseUrl}}/users/{{readerId}}/loans?page=1&pageSize=20
+
+### Histórico de leitor inexistente (404)
+GET {{baseUrl}}/users/00000000-0000-0000-0000-000000000001/loans
+
+############################################################
+# Auditoria (somente leitura)
+############################################################
+
+### Todos os eventos, paginados
+GET {{baseUrl}}/audit-events?page=1&pageSize=20
+
+### Eventos de um empréstimo
+GET {{baseUrl}}/audit-events?entityType=Loan&entityId={{loanId}}
+
+### Eventos por ação
+GET {{baseUrl}}/audit-events?action=LoanReturned
+
+### Eventos por correlationId (veja o X-Correlation-Id enviado em "Criar livro")
+GET {{baseUrl}}/audit-events?correlationId=demo-create-book
+
+############################################################
+# Desativação de livro (nunca apaga fisicamente)
+############################################################
+
+### Desativar livro (204)
+DELETE {{baseUrl}}/books/{{bookId}}
+
+### Empréstimo de livro desativado (409)
+POST {{baseUrl}}/loans
+Content-Type: application/json
+Idempotency-Key: demo-loan-key-0004
+
+{
+  "bookId": "{{bookId}}",
+  "readerId": "{{readerId}}"
+}
+
+### O livro e seu histórico continuam consultáveis
+GET {{baseUrl}}/books/{{bookId}}/history
