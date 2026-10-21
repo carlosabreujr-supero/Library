@@ -1,0 +1,33 @@
+# Executar uma vez por deploy, ANTES de atualizar o Deployment (ex.: etapa de CI/CD ou hook do Helm/Argo).
+# Imagem construida com `docker build --target migrate`. Nao faz parte do kustomization.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: library-loans-migrate
+  labels:
+    app.kubernetes.io/name: library-loans-migrate
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: library-loans-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: library-loans-migrate:latest
+          env:
+            - name: ConnectionStrings__Postgres
+              valueFrom:
+                secretKeyRef:
+                  name: library-loans-api
+                  key: ConnectionStrings__Postgres
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

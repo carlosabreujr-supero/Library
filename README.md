@@ -29,13 +29,13 @@ PostgreSQL é a fonte de verdade (estoque, idempotência, auditoria); Redis é a
 
 ```powershell
 Copy-Item .env.example .env      # ajuste a senha local
-docker compose up --build -d     # API + PostgreSQL 17 + Redis 7 (aguarda health checks)
+docker compose up --build -d     # PostgreSQL 17 + Redis 7 + migrations (serviço migrate) + API
 docker compose ps
 docker compose down              # encerra; o volume do PostgreSQL é preservado
 docker compose down -v           # encerra e apaga os dados
 ```
 
-A API sobe em `http://localhost:8080` (`API_PORT`). Os dados do PostgreSQL persistem em volume nomeado.
+O serviço `migrate` roda uma única vez por `up` (não por réplica da API), aplica as migrations e termina; a API só inicia depois (`service_completed_successfully`). A API sobe em `http://localhost:8080` (`API_PORT`). Os dados do PostgreSQL persistem em volume nomeado.
 Portas de PostgreSQL/Redis não são publicadas; para uso no host crie um `docker-compose.override.yml` local (gitignored), ex.:
 `services: { postgres: { ports: ["5433:5432"] }, redis: { ports: ["6380:6379"] } }`.
 
@@ -58,7 +58,8 @@ Em runtime a API lê `ConnectionStrings__Postgres` e `ConnectionStrings__Redis` 
 ## 5. Migrations
 
 A API **não** aplica migrations ao iniciar (seguro com várias réplicas); elas são uma etapa separada de deploy.
-Com o PostgreSQL acessível:
+No Compose isso é automático: o serviço `migrate` (stage `migrate` do Dockerfile) roda `dotnet ef database update` antes da API. Para rodar manualmente
+(`docker compose run --rm migrate`) ou criar novas migrations a partir do host, com o PostgreSQL acessível:
 
 ```powershell
 dotnet tool restore
@@ -133,6 +134,32 @@ transação (qualquer falha reverte tudo). Check constraints (`0 <= AvailableCop
 Devolução/cancelamento usam `UPDATE ... WHERE Status = 'Active'` e restauram o estoque exatamente uma vez. Funciona com qualquer número de réplicas.
 O teste obrigatório dispara duas requisições paralelas (réplicas distintas, barreira sem delays) para uma única unidade: um 201 e um 409.
 
+### Trade-offs considerados
+
+| Estratégia | Prós | Contras | Decisão |
+|---|---|---|---|
+| **UPDATE condicional atômico** (`WHERE available > 0`) | uma ida ao banco, sem lock explícito nem retry, o invariante vale mesmo com várias réplicas; falha de disponibilidade vira 409 direto | SQL parametrizado fora do modelo de entidades do EF | **Escolhida** |
+| Lock de linha (`SELECT ... FOR UPDATE`) | simples de raciocinar | duas idas ao banco, segura a linha durante a transação e serializa leitores | descartada |
+| Token de concorrência (xmin/versão) com retry | idiomático no EF | sob disputa vira loop de retries e `DbUpdateConcurrencyException`; piora no "último exemplar" | usado só para alterações de livro (`BookConcurrencyToken`) |
+| Isolamento `SERIALIZABLE` | prova de corretude pelo banco | falhas de serialização (40001) exigem retry em todo o fluxo e reduzem a vazão | descartada |
+| Lock em memória / cache | — | não funciona entre réplicas | proibida |
+
+## 8.1 Correção com 2 a 11 réplicas
+
+A API é *stateless*: nenhuma decisão crítica usa memória do processo. Estoque (UPDATE condicional + check constraints), idempotência
+(PK em `idempotency_records` + `ON CONFLICT`) e auditoria (mesma transação, trigger append-only) são decididos pelo PostgreSQL, então
+adicionar ou remover réplicas não altera a corretude. Redis é só cache de leitura, invalidado após o commit; sua falha cai para o PostgreSQL.
+Migrations rodam uma vez (Job/etapa de deploy), nunca por réplica. Dimensione o pool de conexões: `réplicas × pool Npgsql` deve caber em `max_connections`.
+O teste de concorrência simula duas réplicas (duas instâncias da aplicação) contra o mesmo banco.
+
+## 8.2 Ajustes de contrato em relação ao sugerido
+
+- `GET /health` foi substituído por `/health/live` e `/health/ready`.
+- `DELETE /books/{id}` desativa o livro e retorna 204; o histórico é preservado. Livro inativo não pode ser emprestado.
+- `POST /loans/{id}/return` e `/cancel` retornam 200 com o empréstimo atualizado; 404 se inexistente e 409 se não estiver ativo.
+- Sem autenticação: o ator da auditoria é `anonymous`.
+- A chave `Idempotency-Key` tem escopo global; só resultados 201 são memorizados (falhas de negócio liberam a chave).
+- `GET /books` e histórico são paginados (`page`, `pageSize`).
 ## 9. Idempotência
 
 `Idempotency-Key` é obrigatório; a chave (PK global) e o hash SHA-256 do payload canônico são persistidos no PostgreSQL com o resultado.

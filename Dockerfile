@@ -18,3 +18,10 @@ ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 USER $APP_UID
 ENTRYPOINT ["dotnet", "LibraryLoans.Api.dll"]
+
+# Etapa de deploy executada uma vez (nao por replica): aplica as migrations versionadas.
+FROM build AS migrate
+COPY dotnet-tools.json ./
+RUN dotnet tool restore
+RUN dotnet build src/LibraryLoans.Infrastructure/LibraryLoans.Infrastructure.csproj -c Release --no-restore
+ENTRYPOINT ["dotnet", "ef", "database", "update", "--project", "src/LibraryLoans.Infrastructure", "--startup-project", "src/LibraryLoans.Infrastructure", "--configuration", "Release", "--no-build"]

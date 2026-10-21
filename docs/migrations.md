@@ -1,7 +1,9 @@
-# Migrations (EF Core + Npgsql)
+ï»¿# Migrations (EF Core + Npgsql)
 
 As migrations ficam em `src/LibraryLoans.Infrastructure/Migrations` e sÃ£o versionadas no Git.
 **A API nunca aplica migrations ao iniciar**; elas sÃ£o executadas como etapa separada de deploy.
+
+> No Docker Compose as migrations jÃ¡ sÃ£o aplicadas pelo serviÃ§o `migrate` (uma vez por `up`). Manualmente: `docker compose run --rm migrate`. No Kubernetes, use `k8s/migration-job.yaml`.
 
 ## PrÃ©-requisitos
 
@@ -36,9 +38,9 @@ Em ambientes controlados, prefira gerar um script idempotente e aplicÃ¡-lo uma Ã
 dotnet ef migrations script --idempotent --project src/LibraryLoans.Infrastructure --startup-project src/LibraryLoans.Infrastructure -o migrate.sql
 ```
 
-## Testes de integração
+## Testes de integraï¿½ï¿½o
 
-Os testes com PostgreSQL exigem a variável `TEST_POSTGRES` (banco separado; as migrations são aplicadas automaticamente nele):
+Os testes com PostgreSQL exigem a variï¿½vel `TEST_POSTGRES` (banco separado; as migrations sï¿½o aplicadas automaticamente nele):
 
 ```powershell
 $env:TEST_POSTGRES = "Host=localhost;Port=5433;Database=library_loans_tests;Username=library;Password=<senha do .env>"

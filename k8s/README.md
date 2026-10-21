@@ -12,7 +12,8 @@ O PostgreSQL é obrigatório (readiness 503 sem ele). O Redis é opcional: sem e
 ## Migrations
 
 A API não aplica migrations ao iniciar. Rode-as uma vez por deploy, fora do Deployment
-(Job ou etapa de CI; ver [docs/migrations.md](../docs/migrations.md)) antes de subir a nova versão.
+com [migration-job.yaml](migration-job.yaml) (imagem `docker build --target migrate`, fora do kustomization) ou etapa de CI,
+antes de atualizar o Deployment. Ver [docs/migrations.md](../docs/migrations.md).
 
 ## Uso
 
