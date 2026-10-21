@@ -3,9 +3,16 @@ namespace LibraryLoans.Application.Exceptions;
 // Exceções de aplicação independentes de HTTP; a camada de API as traduz para status codes.
 public abstract class ApplicationException(string message) : Exception(message);
 
-public sealed class NotFoundException(string message) : ApplicationException(message);
+// Reason: código curto e de cardinalidade limitada (ex.: "unavailable"), usado em métricas e logs.
+public sealed class NotFoundException(string message, string? reason = null) : ApplicationException(message)
+{
+    public string? Reason { get; } = reason;
+}
 
-public sealed class ConflictException(string message) : ApplicationException(message);
+public sealed class ConflictException(string message, string? reason = null) : ApplicationException(message)
+{
+    public string? Reason { get; } = reason;
+}
 
 public sealed class ValidationException : ApplicationException
 {

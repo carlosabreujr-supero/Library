@@ -78,7 +78,7 @@ public class ErrorContractTests : IClassFixture<ErrorContractTests.Factory>
     [Fact]
     public async Task Invalid_correlation_id_is_replaced()
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/health");
+        var request = new HttpRequestMessage(HttpMethod.Get, "/health/live");
         request.Headers.Add("X-Correlation-Id", "bad value\twith spaces");
         var response = await _client.SendAsync(request);
         Assert.NotEqual("bad value\twith spaces", response.Headers.GetValues("X-Correlation-Id").Single());

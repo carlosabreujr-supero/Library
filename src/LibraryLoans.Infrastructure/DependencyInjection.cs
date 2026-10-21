@@ -1,6 +1,7 @@
 ﻿using LibraryLoans.Application.Abstractions;
 using LibraryLoans.Application.Loans;
 using LibraryLoans.Infrastructure.Caching;
+using LibraryLoans.Infrastructure.Health;
 using LibraryLoans.Infrastructure.Idempotency;
 using LibraryLoans.Infrastructure.Persistence;
 using LibraryLoans.Infrastructure.Persistence.Repositories;
@@ -55,6 +56,9 @@ public static class DependencyInjection
         {
             services.AddSingleton<IReadCache, NoReadCache>();
         }
+
+        var healthSettings = configuration.GetSection("Health").Get<HealthSettings>() ?? new();
+        services.AddSingleton(healthSettings);
 
         return services;
     }

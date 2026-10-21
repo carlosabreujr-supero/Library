@@ -3,6 +3,7 @@ using LibraryLoans.Application.Books;
 using LibraryLoans.Application.Exceptions;
 using LibraryLoans.Application.Loans;
 using LibraryLoans.Domain.Entities;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LibraryLoans.UnitTests;
 
@@ -17,9 +18,9 @@ public class LoanRulesTests
     private readonly TimeProvider _clock = TimeProvider.System;
 
     private CreateLoanHandler Create() =>
-        new(_books, _readers, _loans, _idempotency, _audit, _uow, new NoReadCache(), new LoanSettings { DefaultLoanDays = 14 }, _clock);
+        new(_books, _readers, _loans, _idempotency, _audit, _uow, new NoReadCache(), new LoanSettings { DefaultLoanDays = 14 }, _clock, NullLogger<CreateLoanHandler>.Instance);
 
-    private CloseLoanService Close() => new(_books, _loans, _audit, _uow, new NoReadCache(), _clock);
+    private CloseLoanService Close() => new(_books, _loans, _audit, _uow, new NoReadCache(), _clock, NullLogger<CloseLoanService>.Instance);
 
     private Task<CreateLoanResult> Borrow(Book b, Reader r, string key = "k1") =>
         Create().HandleAsync(new CreateLoanCommand(b.Id, r.Id, key), CancellationToken.None);
