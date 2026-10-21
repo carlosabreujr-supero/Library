@@ -82,7 +82,7 @@ $env:TEST_REDIS    = "localhost:6380,allowAdmin=true"
 dotnet test
 ```
 
-A suíte aplica as migrations em um banco vazio e isola os dados de cada teste. Ver [docs/testing.md](docs/testing.md).
+A suíte aplica as migrations em um banco vazio e isola os dados de cada teste. Ver [docs/testing.md](docs/testing.md). O CI (`.github/workflows/ci.yml`) roda build, testes (com PostgreSQL e Redis como serviços) e o build das imagens Docker.
 
 ## 7. Endpoints
 
