@@ -2,6 +2,7 @@ using LibraryLoans.Application.Abstractions;
 using LibraryLoans.Application.Audit;
 using LibraryLoans.Application.Exceptions;
 using LibraryLoans.Domain.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace LibraryLoans.Application.Loans;
 
@@ -27,12 +28,15 @@ public sealed class CloseLoanService(
     IAuditTrail audit,
     IUnitOfWork unitOfWork,
     IReadCache cache,
-    TimeProvider clock)
+    TimeProvider clock,
+    ILogger<CloseLoanService> logger)
 {
     public async Task<LoanDto> CloseAsync(Guid id, LoanStatus target, string auditAction, CancellationToken ct)
     {
         if (id == Guid.Empty) throw new NotFoundException($"Empréstimo {id} não encontrado.");
 
+        using var activity = LoanTelemetry.Source.StartActivity($"Loan.{target}");
+        activity?.SetTag("library.loan_id", id);
         var dto = await unitOfWork.ExecuteInTransactionAsync(async token =>
         {
             var now = clock.GetUtcNow().UtcDateTime;
@@ -69,6 +73,8 @@ public sealed class CloseLoanService(
         }, ct);
 
         await cache.InvalidateAsync(CacheAreas.ForBook(dto.BookId));
+        LoanTelemetry.LoansClosed.Add(1, new KeyValuePair<string, object?>("status", target.ToString()));
+        logger.LogInformation("Empréstimo {Status}. LoanId={LoanId} BookId={BookId}", target, id, dto.BookId);
         return dto;
     }
 }

@@ -11,6 +11,7 @@ public sealed class CorrelationIdMiddleware(RequestDelegate next, ILogger<Correl
     {
         var correlationId = ResolveCorrelationId(context);
         context.Items[ItemKey] = correlationId;
+        Activity.Current?.SetTag("correlation.id", correlationId);
         // OnStarting: o ExceptionHandler limpa os headers da resposta antes de escrever o erro.
         context.Response.OnStarting(() =>
         {

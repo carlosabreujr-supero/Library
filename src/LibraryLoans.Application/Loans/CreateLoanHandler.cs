@@ -1,10 +1,12 @@
-﻿using System.Security.Cryptography;
+﻿using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using LibraryLoans.Application.Abstractions;
 using LibraryLoans.Application.Audit;
 using LibraryLoans.Application.Exceptions;
 using LibraryLoans.Domain.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace LibraryLoans.Application.Loans;
 
@@ -47,12 +49,67 @@ public sealed class CreateLoanHandler(
     IUnitOfWork unitOfWork,
     IReadCache cache,
     LoanSettings settings,
-    TimeProvider clock)
+    TimeProvider clock,
+    ILogger<CreateLoanHandler> logger)
 {
     public const int MaxKeyLength = 200;
     private const int CreatedStatusCode = 201;
 
     public async Task<CreateLoanResult> HandleAsync(CreateLoanCommand command, CancellationToken ct)
+    {
+        var started = Stopwatch.GetTimestamp();
+        using var activity = LoanTelemetry.Source.StartActivity("CreateLoan");
+        // IDs de negócio ficam em spans e logs (alta cardinalidade); nunca em tags de métricas.
+        activity?.SetTag("library.book_id", command.BookId);
+        activity?.SetTag("library.reader_id", command.ReaderId);
+
+        var outcome = "error";
+        try
+        {
+            var result = await ExecuteAsync(command, ct);
+            if (result.Replayed)
+            {
+                outcome = "replayed";
+                LoanTelemetry.IdempotentReplays.Add(1);
+                logger.LogInformation("Repetição idempotente de empréstimo. BookId={BookId} ReaderId={ReaderId}", command.BookId, command.ReaderId);
+            }
+            else
+            {
+                outcome = "created";
+                LoanTelemetry.LoansCreated.Add(1);
+            }
+            return result;
+        }
+        catch (Exception ex) when (ex is ConflictException or NotFoundException or ValidationException)
+        {
+            var reason = ex switch
+            {
+                ConflictException { Reason: { } r } => r,
+                NotFoundException { Reason: { } r } => r,
+                ValidationException => LoanTelemetry.Reasons.Validation,
+                _ => LoanTelemetry.Reasons.Other
+            };
+            outcome = "rejected";
+            LoanTelemetry.LoansRejected.Add(1, new KeyValuePair<string, object?>("reason", reason));
+            activity?.SetTag("library.rejection_reason", reason);
+            logger.LogInformation("Empréstimo rejeitado ({Reason}). BookId={BookId} ReaderId={ReaderId}", reason, command.BookId, command.ReaderId);
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error);
+            activity?.AddException(ex);
+            throw;
+        }
+        finally
+        {
+            LoanTelemetry.CreateLoanDuration.Record(
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds, new KeyValuePair<string, object?>("outcome", outcome));
+            activity?.SetTag("library.outcome", outcome);
+        }
+    }
+
+    private async Task<CreateLoanResult> ExecuteAsync(CreateLoanCommand command, CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
         var key = command.IdempotencyKey?.Trim();
@@ -77,30 +134,33 @@ public sealed class CreateLoanHandler(
             if (!await idempotency.TryBeginAsync(key!, requestHash, now, token))
             {
                 var existing = await idempotency.GetAsync(key!, token)
-                    ?? throw new ConflictException("Conflito ao processar a Idempotency-Key. Tente novamente.");
+                    ?? throw new ConflictException("Conflito ao processar a Idempotency-Key. Tente novamente.", LoanTelemetry.Reasons.KeyInProgress);
 
                 if (existing.RequestHash != requestHash)
-                    throw new ConflictException("Idempotency-Key já utilizada com um payload diferente.");
+                    throw new ConflictException("Idempotency-Key já utilizada com um payload diferente.", LoanTelemetry.Reasons.KeyReuse);
 
                 if (existing.Status != IdempotencyStatus.Completed || existing.ResponseBody is null)
-                    throw new ConflictException("Requisição com esta Idempotency-Key ainda está em processamento.");
+                    throw new ConflictException("Requisição com esta Idempotency-Key ainda está em processamento.", LoanTelemetry.Reasons.KeyInProgress);
 
                 return new CreateLoanResult(existing.ResponseStatusCode ?? CreatedStatusCode, existing.ResponseBody, Replayed: true);
             }
 
             var reader = await readers.GetAsNoTrackingAsync(readerId, token)
-                ?? throw new NotFoundException($"Leitor {readerId} não encontrado.");
+                ?? throw new NotFoundException($"Leitor {readerId} não encontrado.", LoanTelemetry.Reasons.NotFound);
             if (!reader.IsActive)
-                throw new ConflictException("Leitor inativo não pode realizar empréstimos.");
+                throw new ConflictException("Leitor inativo não pode realizar empréstimos.", LoanTelemetry.Reasons.ReaderInactive);
 
             var book = await books.GetAsNoTrackingAsync(bookId, token)
-                ?? throw new NotFoundException($"Livro {bookId} não encontrado.");
+                ?? throw new NotFoundException($"Livro {bookId} não encontrado.", LoanTelemetry.Reasons.NotFound);
             if (!book.IsActive)
-                throw new ConflictException("Livro desativado não pode ser emprestado.");
+                throw new ConflictException("Livro desativado não pode ser emprestado.", LoanTelemetry.Reasons.BookInactive);
 
             // A disponibilidade é decidida apenas por esta atualização atômica no PostgreSQL.
-            if (!await books.TryReserveCopyAsync(bookId, now, token))
-                throw new ConflictException("Não há exemplares disponíveis para este livro.");
+            using (LoanTelemetry.Source.StartActivity("ReserveCopy"))
+            {
+                if (!await books.TryReserveCopyAsync(bookId, now, token))
+                    throw new ConflictException("Não há exemplares disponíveis para este livro.", LoanTelemetry.Reasons.Unavailable);
+            }
 
             var loan = new Loan
             {
@@ -128,9 +188,20 @@ public sealed class CreateLoanHandler(
 
         // Invalida somente após o commit; repetição idempotente não altera estoque.
         if (!result.Replayed)
+        {
             await cache.InvalidateAsync(CacheAreas.ForBook(bookId));
+            var loanId = ExtractLoanId(result.Body);
+            Activity.Current?.SetTag("library.loan_id", loanId);
+            logger.LogInformation("Empréstimo criado. LoanId={LoanId} BookId={BookId} ReaderId={ReaderId}", loanId, bookId, readerId);
+        }
 
         return result;
+    }
+
+    private static string? ExtractLoanId(string body)
+    {
+        using var doc = JsonDocument.Parse(body);
+        return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() : null;
     }
 
     // Hash dos campos relevantes em forma canônica (independe de formatação/ordem do JSON).

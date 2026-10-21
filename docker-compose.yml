@@ -13,6 +13,9 @@ services:
       Idempotency__RetentionHours: ${IDEMPOTENCY_RETENTION_HOURS:-24}
       Cache__Enabled: ${CACHE_ENABLED:-true}
       Cache__TtlSeconds: ${CACHE_TTL_SECONDS:-30}
+      Health__RedisRequired: ${HEALTH_REDIS_REQUIRED:-false}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-LibraryLoans.Api}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       postgres:
         condition: service_healthy

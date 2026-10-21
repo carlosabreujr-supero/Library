@@ -2,6 +2,8 @@ using LibraryLoans.Api.Endpoints;
 using LibraryLoans.Api.Infrastructure;
 using LibraryLoans.Application;
 using LibraryLoans.Infrastructure;
+using LibraryLoans.Infrastructure.Health;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +16,10 @@ loanSettings.Validate();
 builder.Services.AddSingleton(loanSettings);
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddHealthChecks()
+    .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"])
+    .AddCheck<RedisHealthCheck>("redis", tags: ["ready"]);
+builder.AddObservability();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<LibraryLoans.Application.Abstractions.IRequestContext, HttpRequestContext>();
 builder.Services.AddProblemDetails(options =>
@@ -36,17 +42,18 @@ app.MapReaderEndpoints();
 app.MapLoanEndpoints();
 app.MapAuditEndpoints();
 
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
-
-app.MapGet("/health/ready", async (IConfiguration config, CancellationToken ct) =>
+// Liveness: só indica que o processo responde; não consulta nenhuma dependência.
+app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
-    await using var pg = new Npgsql.NpgsqlConnection(config.GetConnectionString("Postgres"));
-    await pg.OpenAsync(ct);
+    Predicate = _ => false,
+    ResponseWriter = HealthResponseWriter.WriteAsync
+});
 
-    await using var redis = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(config.GetConnectionString("Redis")!);
-    await redis.GetDatabase().PingAsync();
-
-    return Results.Ok(new { status = "ready", postgres = "up", redis = "up" });
+// Readiness: PostgreSQL é obrigatório (503 se cair); Redis é opcional por padrão (Degraded = 200).
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = HealthResponseWriter.WriteAsync
 });
 
 app.Run();
