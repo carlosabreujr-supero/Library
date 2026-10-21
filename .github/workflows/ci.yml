@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_DB: library_loans_tests
+          POSTGRES_USER: library
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U library -d library_loans_tests"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_POSTGRES: Host=localhost;Port=5432;Database=library_loans_tests;Username=library;Password=ci-only-password
+      TEST_REDIS: localhost:6379,allowAdmin=true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build -c Release -warnaserror
+      - run: dotnet test -c Release --no-build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target runtime -t library-loans-api .
+      - run: docker build --target migrate -t library-loans-migrate .
