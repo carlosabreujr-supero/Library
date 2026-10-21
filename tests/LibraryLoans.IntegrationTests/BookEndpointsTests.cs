@@ -42,9 +42,17 @@ public class PostgresFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     async Task IAsyncLifetime.InitializeAsync()
     {
-        using var scope = Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<LibraryDbContext>().Database.MigrateAsync();
+        // Fábricas paralelas disputariam a criação do banco/histórico de migrations em um banco vazio.
+        await MigrationGate.WaitAsync();
+        try
+        {
+            using var scope = Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<LibraryDbContext>().Database.MigrateAsync();
+        }
+        finally { MigrationGate.Release(); }
     }
+
+    private static readonly SemaphoreSlim MigrationGate = new(1, 1);
 
     async Task IAsyncLifetime.DisposeAsync() => await base.DisposeAsync();
 }
